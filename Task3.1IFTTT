@@ -1,0 +1,73 @@
+#include <WiFi.h>
+#include <WiFiClient.h>
+
+const char* ssid = "12345678";
+const char* password = "12345678";
+
+// Replace with your IFTTT Webhook settings
+const char* ifttt_host = "maker.ifttt.com";
+const String ifttt_event = "sunlight_alert";
+const String ifttt_key = "inE9LYrR33VIVO4bHklquzgYacVVtpPMaozwNRMB0Tn";
+
+const int lm393Pin = 2; 
+
+bool previousState = LOW; 
+
+void setup() {
+    Serial.begin(9600);
+    pinMode(lm393Pin, INPUT); 
+
+    WiFi.begin(ssid, password);
+    Serial.print("Connecting to WiFi .....");
+  
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.println(" Wifi Connected!");
+}
+
+void loop() {
+    int lm393State = digitalRead(lm393Pin); 
+
+    // Check if the light state has changed
+    if (lm393State != previousState) {
+        if (lm393State == HIGH) {
+            Serial.println("Sunlight detected!");
+            triggerIFTTTWebhook("Sunlight detected");
+        } else {
+            Serial.println("Sunlight not detected!");
+            triggerIFTTTWebhook("Sunlight not detected");
+        }
+        // Update the previous state to the current state
+        previousState = lm393State;
+    }
+
+    delay(30000); // Delay for 30 seconds
+}
+
+void triggerIFTTTWebhook(String message) {
+    WiFiClient client;
+    String url = "/trigger/" + ifttt_event + "/with/key/" + ifttt_key + "?value1=" + message;
+
+    if (client.connect(ifttt_host, 80)) {
+        Serial.println("Connecting to IFTTT...");
+
+        client.println("GET " + url + " HTTP/1.1");
+        client.println("Host: " + String(ifttt_host));
+        client.println("Connection: close");
+        client.println();
+
+        while (client.connected() || client.available()) {
+            if (client.available()) {
+                String line = client.readStringUntil('\n');
+                //Serial.println(line); 
+            }
+        }
+
+        client.stop();
+        Serial.println("IFTTT Webhook triggered.");
+    } else {
+        Serial.println("Unable to Connect to IFTTT.");
+    }
+}
